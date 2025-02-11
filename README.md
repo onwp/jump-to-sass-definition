@@ -13,7 +13,7 @@ A Visual Studio Code extension that allows you to quickly navigate to SASS varia
 
 1. Open VS Code
 2. Press `Ctrl+P` (Windows) or `Cmd+P` (Mac) to open the Quick Open dialog
-3. Type `ext install jump-to-sass-variable` and press Enter
+3. Type `ext install jump-to-sass-definition` and press Enter
 
 ## Usage
 
