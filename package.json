@@ -3,7 +3,7 @@
   "displayName": "Jump to SASS definition",
   "description": "Jump to SASS definitions with keyboard shortcuts",
   "version": "0.1.0",
-  "publisher": "Serhat Aksakal",
+  "publisher": "SerhatAksakal",
   "license": "MIT",
   "engines": {
     "vscode": "^1.74.0"
