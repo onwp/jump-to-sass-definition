@@ -181,7 +181,7 @@ export function activate(context: vscode.ExtensionContext) {
                     try {
                         const files = await vscode.workspace.findFiles(
                             '**/*.{scss,sass}',
-                            '**/node_modules/**'
+                            '**/node_modules/**,**/.git/**'
                         );
 
                         const currentFilePath = document.uri.fsPath;
@@ -307,7 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 const files = await vscode.workspace.findFiles(
                     '**/*.{scss,sass}',
-                    '**/node_modules/**'
+                    '**/node_modules/**,**/.git/**'
                 );
 
                 const declarations: { location: vscode.LocationLink; description: string }[] = [];

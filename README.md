@@ -53,6 +53,12 @@ You can modify these settings by:
 
 ## Release Notes
 
+### 0.1.4
+
+- Improved search behavior:
+  - Properly excludes node_modules and .git directories from search
+  - Better performance by reducing unnecessary file scanning
+
 ### 0.1.3
 
 - Improved peek view behavior:
