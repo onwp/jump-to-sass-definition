@@ -1,7 +1,7 @@
 {
-  "name": "jump-to-sass-variable",
-  "displayName": "Jump to SASS Variable",
-  "description": "Jump to SASS variable definitions with keyboard shortcuts",
+  "name": "jump-to-sass-definition",
+  "displayName": "Jump to SASS definition",
+  "description": "Jump to SASS definitions with keyboard shortcuts",
   "version": "0.1.0",
   "publisher": "Serhat Aksakal",
   "license": "MIT",
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/jump-to-sass-variable"
+    "url": "https://github.com/YOUR_USERNAME/jump-to-sass-definition"
   },
   "icon": "images/icon.png",
   "galleryBanner": {
