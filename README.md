@@ -1,4 +1,4 @@
-# Jump to SASS Variable
+# Jump to SASS Definition
 
 A Visual Studio Code extension that allows you to quickly navigate to SASS variable definitions by clicking on variables while holding Ctrl (Windows) or Cmd (Mac).
 
