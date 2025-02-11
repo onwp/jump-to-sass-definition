@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+// Cache for file contents to avoid re-reading files
+const fileContentCache = new Map<string, { content: string; timestamp: number }>();
+const CACHE_TTL = 5000; // 5 seconds TTL for cache
+
 export function activate(context: vscode.ExtensionContext) {
     // Register the definition provider for SCSS files
     const provider = new SassVariableDefinitionProvider();
@@ -34,10 +38,61 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    context.subscriptions.push(disposable, hoverProvider);
+    // Clear cache when files change
+    let fileWatcher = vscode.workspace.createFileSystemWatcher('**/*.{scss,sass}');
+    fileWatcher.onDidChange((uri) => fileContentCache.delete(uri.fsPath));
+    fileWatcher.onDidDelete((uri) => fileContentCache.delete(uri.fsPath));
+
+    context.subscriptions.push(disposable, hoverProvider, fileWatcher);
 }
 
 class SassVariableDefinitionProvider implements vscode.DefinitionProvider {
+    // Helper function to get file content with caching
+    private async getFileContent(file: vscode.Uri): Promise<string> {
+        const now = Date.now();
+        const cached = fileContentCache.get(file.fsPath);
+        
+        if (cached && (now - cached.timestamp) < CACHE_TTL) {
+            return cached.content;
+        }
+
+        const content = await vscode.workspace.openTextDocument(file);
+        const fileContent = content.getText();
+        fileContentCache.set(file.fsPath, { content: fileContent, timestamp: now });
+        return fileContent;
+    }
+
+    // Helper function to search for variable in a single file
+    private async searchInFile(
+        file: vscode.Uri,
+        variableName: string,
+        workspacePath: string
+    ): Promise<{ location: vscode.Location; description: string } | null> {
+        const fileContent = await this.getFileContent(file);
+        const lines = fileContent.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith('//')) {
+                continue;
+            }
+
+            if (line.includes(variableName + ':')) {
+                const location = new vscode.Location(
+                    file,
+                    new vscode.Position(i, lines[i].indexOf(variableName))
+                );
+                const relPath = path.relative(workspacePath, file.fsPath);
+                return {
+                    location,
+                    description: `${relPath}:${i + 1}`
+                };
+            }
+        }
+
+        return null;
+    }
+
     async provideDefinition(
         document: vscode.TextDocument,
         position: vscode.Position,
@@ -55,7 +110,6 @@ class SassVariableDefinitionProvider implements vscode.DefinitionProvider {
 
         console.log(`Searching for variable: ${variableName}`);
 
-        // Get configuration and log it for debugging
         const config = vscode.workspace.getConfiguration('jumpToSassVariable');
         const showAllReferences = config.get<boolean>('showAllReferences');
         console.log('Configuration:', {
@@ -70,7 +124,6 @@ class SassVariableDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         try {
-            // Get all SCSS/SASS files
             const files = await vscode.workspace.findFiles(
                 '**/*.{scss,sass}',
                 '**/node_modules/**'
@@ -78,167 +131,58 @@ class SassVariableDefinitionProvider implements vscode.DefinitionProvider {
 
             console.log(`Found ${files.length} SCSS/SASS files to search`);
 
-            // Array to collect all declarations
             const declarations: { location: vscode.Location; description: string }[] = [];
-
-            // Get the current file's directory and workspace path
             const currentFilePath = document.uri.fsPath;
             const workspacePath = workspaceFolder.uri.fsPath;
-            let currentDir = path.dirname(currentFilePath);
-            let foundLocation = null;
 
-            // Get the immediate top-level directory (first directory after workspace root)
+            // Get the immediate top-level directory
             const relativePath = path.relative(workspacePath, currentFilePath);
             const topLevelDir = relativePath.split(path.sep)[0];
-            const currentTopLevelDir = path.join(workspacePath, topLevelDir);
 
-            // Build parent directory levels from current location to workspace root
-            const parentLevels: string[] = [];
-            while (currentDir.startsWith(workspacePath)) {
-                parentLevels.push(currentDir);
-                const parentDir = path.dirname(currentDir);
-                if (parentDir === currentDir) {
-                    break;
-                }
-                currentDir = parentDir;
-            }
-
-            // First, try to find in the same directory tree
+            // Organize files by priority
             const filesInSameTree = files.filter(file => {
                 const fileRelativePath = path.relative(workspacePath, file.fsPath);
                 const fileTopLevelDir = fileRelativePath.split(path.sep)[0];
                 return fileTopLevelDir === topLevelDir;
             });
             
-            // Search files in the same directory tree first
-            for (const file of filesInSameTree) {
-                console.log(`Checking file in same tree: ${file.fsPath}`);
-                const content = await vscode.workspace.openTextDocument(file);
-                const fileContent = content.getText();
-                const lines = fileContent.split('\n');
+            const otherFiles = files.filter(file => !filesInSameTree.includes(file));
 
-                // Look for variable definition
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line || line.startsWith('//')) {
-                        continue;
-                    }
+            // Search in same tree first (parallel processing)
+            const sameTreeResults = await Promise.all(
+                filesInSameTree.map(file => 
+                    this.searchInFile(file, variableName, workspacePath)
+                )
+            );
 
-                    if (line.includes(variableName + ':')) {
-                        console.log(`Found variable definition in same tree: ${file.fsPath}:${i + 1}`);
-                        const location = new vscode.Location(
-                            file,
-                            new vscode.Position(i, lines[i].indexOf(variableName))
-                        );
-                        foundLocation = location;
-                        
-                        // Add to declarations with relative path
-                        const relPath = path.relative(workspacePath, file.fsPath);
-                        declarations.push({
-                            location,
-                            description: `${relPath}:${i + 1}`
-                        });
-                        break;
+            // Add valid results
+            for (const result of sameTreeResults) {
+                if (result) {
+                    declarations.push(result);
+                    if (!showAllReferences) {
+                        return [result.location];
                     }
                 }
             }
 
-            // If not found in same tree, then search at each parent level
-            if (!foundLocation) {
-                for (const parentDir of parentLevels) {
-                    console.log(`Searching at level: ${parentDir}`);
+            // If showing all references or nothing found, search other files
+            if (showAllReferences || declarations.length === 0) {
+                // Process other files in chunks to avoid memory issues
+                const CHUNK_SIZE = 20;
+                for (let i = 0; i < otherFiles.length; i += CHUNK_SIZE) {
+                    const chunk = otherFiles.slice(i, i + CHUNK_SIZE);
+                    const chunkResults = await Promise.all(
+                        chunk.map(file => 
+                            this.searchInFile(file, variableName, workspacePath)
+                        )
+                    );
 
-                    // Get all SCSS/SASS files at this directory level
-                    const levelFiles = files.filter(file => {
-                        const fileDir = path.dirname(file.fsPath);
-                        const fileParentDir = path.dirname(fileDir);
-                        return fileParentDir === parentDir || fileDir === parentDir;
-                    });
-
-                    // Sort to prioritize partial files
-                    levelFiles.sort((a, b) => {
-                        const aName = path.basename(a.fsPath);
-                        const bName = path.basename(b.fsPath);
-                        const aIsPartial = aName.startsWith('_');
-                        const bIsPartial = bName.startsWith('_');
-                        if (aIsPartial && !bIsPartial) return -1;
-                        if (!aIsPartial && bIsPartial) return 1;
-                        return 0;
-                    });
-
-                    // Search each file at this level
-                    for (const file of levelFiles) {
-                        console.log(`Checking file: ${file.fsPath}`);
-                        const content = await vscode.workspace.openTextDocument(file);
-                        const fileContent = content.getText();
-                        const lines = fileContent.split('\n');
-
-                        // Look for variable definition
-                        for (let i = 0; i < lines.length; i++) {
-                            const line = lines[i].trim();
-                            if (!line || line.startsWith('//')) {
-                                continue;
+                    for (const result of chunkResults) {
+                        if (result) {
+                            declarations.push(result);
+                            if (!showAllReferences) {
+                                return [result.location];
                             }
-
-                            if (line.includes(variableName + ':')) {
-                                console.log(`Found variable definition in ${file.fsPath}:${i + 1}`);
-                                const location = new vscode.Location(
-                                    file,
-                                    new vscode.Position(i, lines[i].indexOf(variableName))
-                                );
-                                foundLocation = location;
-                                
-                                // Add to declarations with relative path
-                                const relPath = path.relative(workspacePath, file.fsPath);
-                                declarations.push({
-                                    location,
-                                    description: `${relPath}:${i + 1}`
-                                });
-                                break;
-                            }
-                        }
-
-                        if (foundLocation && !showAllReferences) {
-                            break;
-                        }
-                    }
-
-                    if (foundLocation && !showAllReferences) {
-                        break;
-                    }
-                }
-            }
-
-            // Search all files if showing all references
-            if (showAllReferences) {
-                for (const file of files) {
-                    // Skip files we've already found
-                    if (declarations.some(d => d.location.uri.fsPath === file.fsPath)) {
-                        continue;
-                    }
-
-                    const content = await vscode.workspace.openTextDocument(file);
-                    const fileContent = content.getText();
-                    const lines = fileContent.split('\n');
-
-                    for (let i = 0; i < lines.length; i++) {
-                        const line = lines[i].trim();
-                        if (!line || line.startsWith('//')) {
-                            continue;
-                        }
-
-                        if (line.includes(variableName + ':')) {
-                            const location = new vscode.Location(
-                                file,
-                                new vscode.Position(i, lines[i].indexOf(variableName))
-                            );
-                            
-                            // Add to declarations with relative path
-                            const relPath = path.relative(workspacePath, file.fsPath);
-                            declarations.push({
-                                location,
-                                description: `${relPath}:${i + 1}`
-                            });
                         }
                     }
                 }
@@ -282,4 +226,7 @@ class SassVariableDefinitionProvider implements vscode.DefinitionProvider {
     }
 }
 
-export function deactivate() {} 
+export function deactivate() {
+    // Clear the cache when deactivating
+    fileContentCache.clear();
+} 
