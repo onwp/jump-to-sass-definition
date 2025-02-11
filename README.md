@@ -6,7 +6,8 @@ A Visual Studio Code extension that allows you to quickly navigate to SASS varia
 
 - Jump to SASS variable definitions with Ctrl+Click (Windows) or Cmd+Click (Mac)
 - Support for both SCSS and SASS files
-- Configurable behavior to show all references or just same-directory definitions
+- Support for variables, mixins, and functions
+- Show all references using Alt+Shift+F12 or context menu
 - Works with partial files and imported SASS files
 
 ## Installation
@@ -25,7 +26,7 @@ A Visual Studio Code extension that allows you to quickly navigate to SASS varia
 
 This extension contributes the following settings:
 
-* `jumpToSassVariable.showAllReferences`: When set as true, shows all variable definitions across the workspace. When set as false (default), jumps directly to the definition in the same directory level.
+* `jumpToSassVariable.showAllReferences`: (Deprecated) This setting is no longer used. Use Alt+Shift+F12 or the context menu to show all references.
 
 You can modify these settings by:
 1. Opening VS Code settings (`Ctrl+,` or `Cmd+,`)
@@ -34,7 +35,7 @@ You can modify these settings by:
 
 ## Requirements
 
-- Visual Studio Code version 1.60.0 or higher
+- Visual Studio Code version 1.74.0 or higher
 
 ## Known Issues
 
@@ -42,6 +43,20 @@ You can modify these settings by:
 - Performance might be affected in very large workspaces with many SASS files
 
 ## Release Notes
+
+### 0.1.2
+
+- Improved definition jumping behavior:
+  - Cmd/Ctrl+Click now always jumps to the first definition found
+  - Added new "Show All References" command (Alt+Shift+F12)
+  - Added context menu option to show all references
+  - Deprecated the showAllReferences setting
+- Added support for jumping to mixin and function definitions
+- Improved search performance with file caching
+
+### 0.1.1
+
+Update readme
 
 ### 0.1.0
 

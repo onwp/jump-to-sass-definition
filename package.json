@@ -2,7 +2,7 @@
   "name": "jump-to-sass-definition",
   "displayName": "Jump to SASS definition",
   "description": "Jump to SASS definitions with keyboard shortcuts",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "publisher": "SerhatAksakal",
   "license": "MIT",
   "engines": {
@@ -84,6 +84,10 @@
       {
         "command": "jumpToSassVariable.jumpToDefinition",
         "title": "Jump to SASS Definition"
+      },
+      {
+        "command": "sass.showAllReferences",
+        "title": "Show All SASS References"
       }
     ],
     "configuration": {
@@ -99,7 +103,7 @@
     "menus": {
       "editor/context": [
         {
-          "command": "jumpToSassVariable.jumpToDefinition",
+          "command": "sass.showAllReferences",
           "when": "editorTextFocus && editorLangId =~ /^s(c|a)ss$/"
         }
       ]
@@ -111,6 +115,14 @@
         "mac": "cmd+click",
         "win": "ctrl+click",
         "linux": "ctrl+click",
+        "when": "editorTextFocus && editorLangId =~ /^s(c|a)ss$/"
+      },
+      {
+        "command": "sass.showAllReferences",
+        "key": "alt+shift+f12",
+        "mac": "alt+shift+f12",
+        "win": "alt+shift+f12",
+        "linux": "alt+shift+f12",
         "when": "editorTextFocus && editorLangId =~ /^s(c|a)ss$/"
       }
     ],

@@ -120,7 +120,6 @@ async function searchInFile(
 }
 
 export function activate(context: vscode.ExtensionContext) {
-    // Register the definition provider for SCSS files
     const disposables: vscode.Disposable[] = [];
 
     // Register for both SCSS and SASS files
@@ -174,9 +173,6 @@ export function activate(context: vscode.ExtensionContext) {
                         return null;
                     }
 
-                    const config = vscode.workspace.getConfiguration('jumpToSassVariable');
-                    const showAllReferences = config.get<boolean>('showAllReferences');
-
                     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
                     if (!workspaceFolder) {
                         return null;
@@ -188,7 +184,6 @@ export function activate(context: vscode.ExtensionContext) {
                             '**/node_modules/**'
                         );
 
-                        const declarations: { location: vscode.LocationLink; description: string }[] = [];
                         const currentFilePath = document.uri.fsPath;
                         const workspacePath = workspaceFolder.uri.fsPath;
 
@@ -212,71 +207,34 @@ export function activate(context: vscode.ExtensionContext) {
                             )
                         );
 
-                        // Add valid results
+                        // Return first valid result from same tree
                         for (const result of sameTreeResults) {
                             if (result) {
-                                declarations.push(result);
-                                if (!showAllReferences) {
+                                return [result.location];
+                            }
+                        }
+
+                        // If nothing found in same tree, search other files
+                        // Process other files in chunks to avoid memory issues
+                        const CHUNK_SIZE = 20;
+                        for (let i = 0; i < otherFiles.length; i += CHUNK_SIZE) {
+                            const chunk = otherFiles.slice(i, i + CHUNK_SIZE);
+                            const chunkResults = await Promise.all(
+                                chunk.map(file => 
+                                    searchInFile(file, searchTerm, type, workspacePath)
+                                )
+                            );
+
+                            for (const result of chunkResults) {
+                                if (result) {
                                     return [result.location];
                                 }
                             }
                         }
 
-                        // If showing all references or nothing found, search other files
-                        if (showAllReferences || declarations.length === 0) {
-                            // Process other files in chunks to avoid memory issues
-                            const CHUNK_SIZE = 20;
-                            for (let i = 0; i < otherFiles.length; i += CHUNK_SIZE) {
-                                const chunk = otherFiles.slice(i, i + CHUNK_SIZE);
-                                const chunkResults = await Promise.all(
-                                    chunk.map(file => 
-                                        searchInFile(file, searchTerm, type, workspacePath)
-                                    )
-                                );
-
-                                for (const result of chunkResults) {
-                                    if (result) {
-                                        declarations.push(result);
-                                        if (!showAllReferences) {
-                                            return [result.location];
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (declarations.length === 0) {
-                            vscode.window.showInformationMessage(`No definition found for ${type}: ${searchTerm}`);
-                            return null;
-                        }
-
-                        if (!showAllReferences) {
-                            return [declarations[0].location];
-                        }
-
-                        // Show quick pick for declarations only if showAllReferences is true
-                        const items = declarations.map(decl => ({
-                            label: searchTerm,
-                            description: decl.description,
-                            location: decl.location
-                        }));
-
-                        const selected = await vscode.window.showQuickPick(items, {
-                            title: `Choose ${type} Declaration`,
-                            placeHolder: 'Select a declaration'
-                        });
-
-                        if (selected) {
-                            // Open the document and reveal the location
-                            const doc = await vscode.workspace.openTextDocument(selected.location.targetUri);
-                            const editor = await vscode.window.showTextDocument(doc);
-                            const range = selected.location.targetSelectionRange || selected.location.targetRange;
-                            editor.revealRange(selected.location.targetRange, vscode.TextEditorRevealType.InCenter);
-                            editor.selection = new vscode.Selection(range.start, range.start);
-                            return [selected.location];
-                        }
-
+                        vscode.window.showInformationMessage(`No definition found for ${type}: ${searchTerm}`);
                         return null;
+
                     } catch (error) {
                         console.error('Error:', error);
                         vscode.window.showErrorMessage(`Error finding definition: ${error}`);
@@ -285,6 +243,115 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             }
         )
+    );
+
+    // Register command to show all references
+    disposables.push(
+        vscode.commands.registerTextEditorCommand('sass.showAllReferences', async (editor) => {
+            const position = editor.selection.active;
+            const document = editor.document;
+            
+            // Check for variable/mixin/function at position
+            const variableRange = document.getWordRangeAtPosition(position, VARIABLE_REGEX);
+            let searchTerm = '';
+            let type: 'variable' | 'mixin' | 'function' = 'variable';
+
+            if (variableRange) {
+                searchTerm = document.getText(variableRange);
+                if (!searchTerm.startsWith('$')) {
+                    return;
+                }
+            } else {
+                // Check for mixin
+                const line = document.lineAt(position.line).text;
+                const mixinMatch = line.match(MIXIN_REGEX);
+                if (mixinMatch) {
+                    const wordRange = document.getWordRangeAtPosition(position, /[\w-]+/);
+                    if (!wordRange) {
+                        return;
+                    }
+                    const word = document.getText(wordRange);
+                    if (mixinMatch[1] === word) {
+                        searchTerm = word;
+                        type = 'mixin';
+                    }
+                } else {
+                    // Check for function
+                    const functionRange = document.getWordRangeAtPosition(position, /[\w-]+/);
+                    if (functionRange) {
+                        const word = document.getText(functionRange);
+                        const afterWord = document.getText(new vscode.Range(
+                            functionRange.end,
+                            new vscode.Position(functionRange.end.line, functionRange.end.character + 1)
+                        ));
+                        if (afterWord.startsWith('(')) {
+                            searchTerm = word;
+                            type = 'function';
+                        }
+                    }
+                }
+            }
+
+            if (!searchTerm) {
+                vscode.window.showInformationMessage('No SASS variable, mixin, or function found at cursor position');
+                return;
+            }
+
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+            if (!workspaceFolder) {
+                return;
+            }
+
+            try {
+                const files = await vscode.workspace.findFiles(
+                    '**/*.{scss,sass}',
+                    '**/node_modules/**'
+                );
+
+                const declarations: { location: vscode.LocationLink; description: string }[] = [];
+                const workspacePath = workspaceFolder.uri.fsPath;
+
+                // Search all files in parallel
+                const results = await Promise.all(
+                    files.map(file => searchInFile(file, searchTerm, type, workspacePath))
+                );
+
+                // Collect all valid results
+                for (const result of results) {
+                    if (result) {
+                        declarations.push(result);
+                    }
+                }
+
+                if (declarations.length === 0) {
+                    vscode.window.showInformationMessage(`No references found for ${type}: ${searchTerm}`);
+                    return;
+                }
+
+                // Show quick pick for all declarations
+                const items = declarations.map(decl => ({
+                    label: searchTerm,
+                    description: decl.description,
+                    location: decl.location
+                }));
+
+                const selected = await vscode.window.showQuickPick(items, {
+                    title: `Choose ${type} Reference`,
+                    placeHolder: 'Select a reference'
+                });
+
+                if (selected) {
+                    const doc = await vscode.workspace.openTextDocument(selected.location.targetUri);
+                    const editor = await vscode.window.showTextDocument(doc);
+                    const range = selected.location.targetSelectionRange || selected.location.targetRange;
+                    editor.revealRange(selected.location.targetRange, vscode.TextEditorRevealType.InCenter);
+                    editor.selection = new vscode.Selection(range.start, range.start);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                vscode.window.showErrorMessage(`Error finding references: ${error}`);
+            }
+        })
     );
 
     // Clear cache when files change
