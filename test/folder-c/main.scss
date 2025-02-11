@@ -1,0 +1,11 @@
+@import 'variables';
+
+.component-c {
+    color: $color-primary;
+    background: $color-secondary;
+    border: 1px solid $color-accent;
+    font-size: $font-size-base;
+    font-family: $font-family-sans;
+    padding: $spacing-medium;
+    margin: $spacing-small;
+} 
