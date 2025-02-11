@@ -12,15 +12,14 @@
   ],
   "activationEvents": [
     "onLanguage:scss",
-    "onLanguage:sass",
-    "onCommand:jumpToSassVariable.jumpToDefinition"
+    "onLanguage:sass"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "jumpToSassVariable.jumpToDefinition",
-        "title": "Jump to SASS Variable Definition"
+        "title": "Jump to SASS Definition"
       }
     ],
     "configuration": {
@@ -33,6 +32,24 @@
         }
       }
     },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "jumpToSassVariable.jumpToDefinition",
+          "when": "editorTextFocus && editorLangId =~ /^s(c|a)ss$/"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "jumpToSassVariable.jumpToDefinition",
+        "key": "cmd+click",
+        "mac": "cmd+click",
+        "win": "ctrl+click",
+        "linux": "ctrl+click",
+        "when": "editorTextFocus && editorLangId =~ /^s(c|a)ss$/"
+      }
+    ],
     "languages": [
       {
         "id": "scss",
