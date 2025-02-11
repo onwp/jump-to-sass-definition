@@ -2,7 +2,7 @@
   "name": "jump-to-sass-definition",
   "displayName": "Jump to SASS definition",
   "description": "Jump to SASS definitions with keyboard shortcuts",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "SerhatAksakal",
   "license": "MIT",
   "engines": {

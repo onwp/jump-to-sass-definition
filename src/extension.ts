@@ -200,40 +200,42 @@ export function activate(context: vscode.ExtensionContext) {
                         
                         const otherFiles = files.filter(file => !filesInSameTree.includes(file));
 
-                        // Search in same tree first (parallel processing)
+                        // Check if peek is enabled
+                        const editorConfig = vscode.workspace.getConfiguration('editor');
+                        const isPeekEnabled = editorConfig.get<boolean>('definitionLinkOpensInPeek', false);
+
+                        // Search in same tree first
                         const sameTreeResults = await Promise.all(
                             filesInSameTree.map(file => 
                                 searchInFile(file, searchTerm, type, workspacePath)
                             )
                         );
 
-                        // Return first valid result from same tree
-                        for (const result of sameTreeResults) {
-                            if (result) {
-                                return [result.location];
-                            }
+                        // Filter out null results
+                        const validSameTreeResults = sameTreeResults.filter((result): result is { location: vscode.LocationLink; description: string } => result !== null);
+
+                        // If peek is not enabled or we found results in the same tree, return those first
+                        if (!isPeekEnabled && validSameTreeResults.length > 0) {
+                            return [validSameTreeResults[0].location];
                         }
 
-                        // If nothing found in same tree, search other files
-                        // Process other files in chunks to avoid memory issues
-                        const CHUNK_SIZE = 20;
-                        for (let i = 0; i < otherFiles.length; i += CHUNK_SIZE) {
-                            const chunk = otherFiles.slice(i, i + CHUNK_SIZE);
-                            const chunkResults = await Promise.all(
-                                chunk.map(file => 
-                                    searchInFile(file, searchTerm, type, workspacePath)
-                                )
-                            );
+                        // If peek is enabled or no results found in same tree, search other files
+                        const otherResults = await Promise.all(
+                            otherFiles.map(file => 
+                                searchInFile(file, searchTerm, type, workspacePath)
+                            )
+                        );
 
-                            for (const result of chunkResults) {
-                                if (result) {
-                                    return [result.location];
-                                }
-                            }
+                        // Combine results, prioritizing same tree results
+                        const allResults = [...validSameTreeResults, ...otherResults.filter((result): result is { location: vscode.LocationLink; description: string } => result !== null)];
+
+                        if (allResults.length === 0) {
+                            vscode.window.showInformationMessage(`No definition found for ${type}: ${searchTerm}`);
+                            return null;
                         }
 
-                        vscode.window.showInformationMessage(`No definition found for ${type}: ${searchTerm}`);
-                        return null;
+                        // Return all results for peek view, or just the first same-tree result (or first result if no same-tree results)
+                        return isPeekEnabled ? allResults.map(result => result.location) : [allResults[0].location];
 
                     } catch (error) {
                         console.error('Error:', error);
