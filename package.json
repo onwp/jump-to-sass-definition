@@ -3,13 +3,31 @@
   "displayName": "Jump to SASS Variable",
   "description": "Jump to SASS variable definitions with keyboard shortcuts",
   "version": "0.1.0",
+  "publisher": "Serhat Aksakal",
+  "license": "MIT",
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.74.0"
   },
   "categories": [
     "Programming Languages",
     "Other"
   ],
+  "keywords": [
+    "sass",
+    "scss",
+    "navigation",
+    "definition",
+    "variables"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/jump-to-sass-variable"
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#C6538C",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onLanguage:scss",
     "onLanguage:sass"

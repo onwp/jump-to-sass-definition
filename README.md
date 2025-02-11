@@ -25,7 +25,7 @@ A Visual Studio Code extension that allows you to quickly navigate to SASS varia
 
 This extension contributes the following settings:
 
-* `jumpToSassVariable.showAllReferences`: When enabled, shows all variable definitions across the workspace. When disabled (default), jumps directly to the definition in the same directory level.
+* `jumpToSassVariable.showAllReferences`: When set as true, shows all variable definitions across the workspace. When set as false (default), jumps directly to the definition in the same directory level.
 
 You can modify these settings by:
 1. Opening VS Code settings (`Ctrl+,` or `Cmd+,`)
