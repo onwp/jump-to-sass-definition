@@ -53,6 +53,10 @@ You can modify these settings by:
 
 ## Release Notes
 
+### 0.1.5
+
+- Update extension icon
+
 ### 0.1.4
 
 - Improved search behavior:
@@ -86,4 +90,4 @@ Update readme
 Initial release of Jump to SASS Variable
 - Basic variable definition jumping
 - Same-directory or all-references options
-- SCSS and SASS support 
+- SCSS and SASS support
